@@ -1,0 +1,428 @@
+---
+title: "What causes ice ages?"
+author: "Jason Yamada-Hanff"
+date: "May 6, 2016"
+output:
+  html_document:
+    fig_height: 4
+    fig_width: 6
+    keep_md: yes
+  pdf_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r load-packages}
+library(tidyr)
+library(zoo)
+library(ggplot2)
+library(gridExtra)
+```
+
+```{r insol-fn}
+# from http://biocycle.atmos.colostate.edu/shiny/Milankovitch/#Qday.65N.solstice.R
+Qday.65N.solstice <- function(S0=1367, eccentricity=0.0167,
+                              obliquity=0.4091, perihelion=1.7963){
+
+  # Given Earth's orbital parameters (eccentricity, obliquity, & perhihelion),
+  # Calculate the daily mean top-of-atmosphere insolation at 65N June solstice
+
+  # For a derivation see http://en.wikipedia.org/wiki/Insolation
+
+  latitude <- 65. * pi / 180.
+  Q.day <- S0*(1+eccentricity*sin(perihelion))^2 *sin(latitude)*sin(obliquity)
+
+  return(Q.day)
+}
+
+Qday.solstice <- function(S0=1367, eccentricity=0.0167,
+                          obliquity=0.4091, perihelion=1.7963, lat=65.0){
+
+  # Given Earth's orbital parameters (eccentricity, obliquity, & perhihelion),
+  # Calculate the daily mean top-of-atmosphere insolation at 65N June solstice
+
+  # For a derivation see http://en.wikipedia.org/wiki/Insolation
+
+  latitude <- lat * pi / 180.
+  Q.day <- S0*(1+eccentricity*sin(perihelion))^2 *sin(latitude)*sin(obliquity)
+
+  return(Q.day)
+}
+```
+
+## Milankovich cycles
+
+There are three major changes in the way the Earth moves around the Sun in Milankovich theory:
+
+  * _eccentricity_ (~100-400kyr): Earth's orbit is elliptical (thank you Kepler!). But an ellipse can vary in how extreme the difference between the short axis and the long axis is. If the axes are almost the same distance, then the ellipse looks a lot like a plain old circle. If the axes are very different, then the shape "flattens out". When the orbit is _more_ elliptical, it affects the distance of the Earth to the Sun, and makes the difference more extreme between seasons.
+
+  * _obliquity_ (~41kyr): One day is one revolution around the Earth's spin axis running from the North Pole to the South Pole. This axis is tilted. Tilted with respect to what? With respect to the plane of orbit around the Sun. The amount of tilt changes over time. The Earth "nods" at the Sun, completing one nod every 41kyr. The change affects which latitudes are pointed more directly at the Sun.
+
+  * _precession_ (~20kyr): The spin axis "wobbles" like a top around the perpendicular to the plane of orbit. This means that the time of year that the North Pole is pointed towards the Sun changes over time (and, yes, that means the seasons will "flip" every 10kyr or so).
+
+## Thinking about signals and frequencies
+
+Looking at a signal that cycles over time gives one way to look at a process. But if the cycle never speeds up or slows down, there's a much more convenient way to think about it. Because it stays the same, we can describe everything by just saying how many cycles there are every second, or hour, or year--any unit of time will do. This value--cycles/time--we call the _frequency_ of the signal.
+
+Today we will be talking about a new way of thinking about problems. The technique is used in a fantastic variety of ways. For instance, if you are an engineer, you might use it to make an audio, video, or image file smaller, to improve call quality on a cell phone, or
+
+Working on a problem by converting it frequency
+
+
+### The Fourier transform
+
+Say you recorded a clip of yourself singing in the shower, or playing a song on your guitar. You'll have an audio signal over _time_. How do we turn the time signal into a _frequency_ signal?
+
+A technique called the _Fourier transform_ does this job. It tells us _how much of each frequency_ is in our signal---that is, it is a histogram of frequencies. Name a frequency (say, middle C), and the Fourier transform tells you how much of it you've got. There are mathematical and logistical details that we won't go over today. For now, the key is to get the concept of how _Fourier transforms_ can help us think about problems.
+
+
+#### Thinking about units
+
+What does R spit out for us when we calculate an FFT? As with almost anything, and with physics in particular, thinking through the units helps understand what is going on.
+
+So what are the units of the FFT? Well, don't check the R help page for the FFT.
+
+The x-axis is in _fractions of the sampling rate_. This is a frequency, but int he context of the sample rate of the signal. To see that this _is_ a frequency, note that a rate is some unit _over time_ (cycles/sample * sample/time), so the units of a sample rate is samples per unit time. Thus, to get Hertz (Hz, cycles/second), we just convert the unit time to seconds.
+
+In our case then, the sample rate is once every 1000 years, so the frequencies that fall directly from the FFT are _cycles/1000 years_.
+
+How much time does it take to make 1 full cycle? That's the definition of _period_. It's the opposite (reciprocal!) of frequency---_time/cycle_.
+
+So if we are graphing fractions of sample rate on the x-axis (with increasing fraction), where will a long cycle show up on the graph?
+
+
+This is the most straightforward way to get a frequency spectrum (power spectral density plot). Uses a periodogram and Daniell smoothers
+
+```
+spec.data <- spectrum(data, spans=c(3, 5, 7));
+```
+
+The `spans` argument tells R how it should smooth the raw result. If you don't give `spans`, then you get the raw result of the Fourier transform.
+
+But this raw result is noisy and the peaks can be misleading. The problem is that the result is, in some sense, _too good_ at representing the data you give to it. If you give `spectrum` two different recordings of the same thing, you want to not care about differences that don't matter.
+
+It does this by taking a number of points from the raw result and averaging them to get the smoothed result.
+
+## Appendix A. Some thoughts on R
+
+Any choice of tools will have its share of skeptics. If you are one of those skeptics, or are just curious about what's out there, here are some thoughts on why we've chosen [R]() as our working environment today. Along the way, we'll touch on alternatives to R and why (or why not) you might use those instead.
+
+R is a very important tool for people working with data analysis these days. It is the _de facto_ standard for people working in statistics, it is free and open-source, and it (and its community) are designed around being useful and accessible for non-programmers.
+
+I chose R for today because of 1) it comes out of the box with a function for the analysis we are running today (`spectrum`!), 2) [RStudio]() makes it easy to hit the ground running, and 3) [RMarkdown]() makes writing guided R lessons easy. These last two reasons are particularly important. The company that makes RStudio also supports lots of tools for R that make using R easier. You are looking at an RMarkdown document. Other programming environments don't have a similar tool that compares in maturity and support.
+
+R is far from perfect. Even R acolytes recognize this, and I refer you to the [introduction to the book Advanced R](http://adv-r.had.co.nz/Introduction.html) for a very good list of what's frustrating about R. Perhaps the worst problem is that R has lots of special cases in which some parts work differently from the rest. This makes it easy to make mistakes and harder to predict how to write something correctly.
+
+The main competitor to R for data scientists is [Python]() and a great set of
+scientific packages ([pandas](), [numpy](), [scipy](), and others). To my mind, Python beats out R in many respects. The killer feature of Python, compared to R, is that it is a general-purpose programming language, so it is used in many fields. This also means that it is more consistent and predictable, it integrates better with other tools, and has a community that cares more about code quality.
+
+Then there are commercial options. Chief among these is [MATLAB](), which is very very popular for scientists and engineers. Indeed, for many scientists in my field (neuroscience), "programming" and "data analysis" _mean_ MATLAB. But there is a healthy group of people, myself included, that think MATLAB does not justify its expense. Other commercial options include [Mathematica](), [Origin](), [Igor PRO](), and [Microsoft Excel]().
+
+## R Resources
+
+[Advanced R](http://adv-r.had.co.nz/)
+
+## An example
+
+```{r}
+Ts <- 4       # total length of sample (seconds)
+Fs <- 100.0;   # sample rate (Hz, samples/second)
+n  <- Ts*Fs;  # number of samples
+t  <- seq(0, Ts, by=1/Fs);  # generate times
+y  <- cos(2*pi*t)
+```
+
+## Possible questions/activites
+
+  #. What causes the seasons?
+  #. Why is the equator hotter than the poles?
+  #. What causes ice ages? Why does the Earth's climate cycle?
+  #. What causes the Earth's orbit to change? What forces are responsible?
+  #. Where will a cycle with a long period show up on the frequency spectrum graph?
+  #. Examine the graphs of orbital changes. Where do the orbit cycles predict a cold era, when do they predict a hot era? What are your considerations? What assumptions do you have to make to make this inference?
+  #. Does the Earth's climate vary globally or locally? Why?
+  #. The change in solar insolation caused by orbital cycling is very small, but the changes in climate are large. What does this suggest about the theory that orbital cycles influence the climate?
+  #. Extra credit: Find another signal (in any domain?). (Birdsong, Human speech, Images, Music/Tones). Analyze it using frequency analysis techniques. Say something interesting about it.
+  #. Students break into groups to learn about each cycle. Then convene into groups of 3 to teach each other and put the cycles together.
+  #. Use Stellarium to develop some experience with how location on Earth affects amount of sunlight.
+
+## Getting a look at the data
+
+Data from Laskar, orbital parameters
+
+```{r}
+# read Laskar simulated orbital parameters
+insol <- read.table("INSOLN.LA2004.BTL.ASC.E.txt", col.names = c("time", "eccentricity", "obliquity", "precession"), header=FALSE);
+
+insol$insolation <- Qday.65N.solstice(eccentricity = insol$eccentricity, obliquity = insol$obliquity, perihelion = insol$precession)
+
+insol$insol_no_ecc <- Qday.65N.solstice(eccentricity = mean(insol$eccentricity), obliquity = insol$obliquity, perihelion = insol$precession)
+insol$insol_no_obl <- Qday.65N.solstice(eccentricity = insol$eccentricity, obliquity = mean(insol$obliquity), perihelion = insol$precession)
+insol$insol_no_prc <- Qday.65N.solstice(eccentricity = insol$eccentricity, obliquity = insol$obliquity, perihelion = mean(insol$precession))
+
+
+insol.tidy <- gather(insol, var, value, eccentricity, obliquity, precession);
+
+
+
+ggplot(insol.tidy) + geom_path(aes(x=time, y=value)) +
+    facet_grid(var ~ ., scales="free_y") +
+    xlim(-1e3, 0) + xlab("kiloyears before present");
+```
+
+```{r}
+# read Vostok deuterium data
+deut <- read.table("deutnat.txt", skip=111, header=FALSE,
+                    col.names = c("depth", "age", "deut", "deltaTS"));
+ggplot(deut) + geom_path(aes(x=age, y=deut)) + ylab("Deuterium (heavy water) measure") +
+               scale_x_reverse() + xlab("age (years before present)");
+```
+
+
+
+## Recovering frequencies of orbital parameters
+
+```{r milankovic-spectra}
+ecc.spec <- spec.pgram(insol[,"eccentricity"], plot=FALSE);
+obl.spec <- spec.pgram(insol[,"obliquity"], plot=FALSE);
+prc.spec <- spec.pgram(insol[,"precession"], plot=FALSE);
+ins.spec <- spec.pgram(insol[,"insolation"], plot=FALSE);
+
+insol.spec.df <- data.frame(frequency = ecc.spec$freq, eccentricity = ecc.spec$spec,
+                            obliquity = obl.spec$spec, precession = prc.spec$spec);
+insol.spec.df <- gather(insol.spec.df, var, power, eccentricity, obliquity, precession);
+ggplot(insol.spec.df) + geom_path(aes(x=frequency, y=power)) +
+                        xlim(0, 0.3) + facet_grid(var ~ ., scales = "free_y");
+```
+
+
+```{r insolation-display}
+# calculate solar insolation based on orbital time series
+insol$insolation <- Qday.65N.solstice(eccentricity = insol$eccentricity, obliquity = insol$obliquity, perihelion = insol$precession)
+
+# calculate spectrum
+ins.spec <- spec.pgram(insol[,"insolation"], plot=FALSE);
+ins.spec.df <- data.frame(frequency = ins.spec$freq, power = ins.spec$spec);
+# freq domain plot
+p2 <- ggplot(ins.spec.df) +
+        geom_path(aes(x=frequency, y=power)) +
+        xlim(0, 0.1) +
+        ggtitle("Solar insolation at 65* lat (summer)");
+# time domain plot
+p1 <- ggplot(insol) +
+        geom_path(aes(x=time, y=insolation)) +
+        xlim(-1e3, 0) +
+        xlab("kiloyears before present") +
+        ylab("Solar insolation at 65* lat (summer)");
+grid.arrange(p1, p2, nrow=2, ncol=1);
+```
+
+Based on the above graph, which variables matter most?
+
+## Analyzing Vostok deuterium data
+
+```{r vostok-deut-load}
+# read Vostok deuterium data
+deut <- read.table("deutnat.txt", skip=111, header=FALSE,
+                    col.names = c("depth", "age", "deut", "deltaTS"));
+# fill in "missing" values to make regular intervals between points
+deut.full <- na.spline(as.ts(zoo(deut$deut, order.by=deut$age)));
+```
+
+```{r vostok-deut-spec}
+# calculate "periodogram"
+deut.spec <- spec.pgram(deut.full, plot=FALSE);
+#            [1]        [2]        [3]         [4]        [5]
+
+# plot
+deut.spec.df <- data.frame(frequency = deut.spec$freq, spec = deut.spec$spec);
+ggplot(deut.spec.df) + geom_path(aes(x=frequency, y=spec), color="black") +
+                       xlim(0, 2e-4) + ylab("spectral power (arbitrary units)") +
+                       geom_vline(aes(xintercept=1/100e3), color="blue", alpha=0.3) +
+                       geom_vline(aes(xintercept=1/41e3), color="blue", alpha=0.3) +
+                       geom_vline(aes(xintercept=1/23e3), color="blue", alpha=0.3) +
+                       annotate("text", x=1/100e3, y=Inf, vjust=1, label="100") +
+                       annotate("text", x=1/41e3,  y=Inf, vjust=1, label="41") +
+                       annotate("text", x=1/23e3,  y=Inf, vjust=1, label="23 kyr");
+```
+
+Same with Vostok CO2 data
+
+```{r vostok-co2}
+co2nat <- read.table("co2nat.txt", skip=156, col.names = c("age", "co2"));
+co2.full <- na.spline(as.ts(zoo(co2nat$co2, order.by=co2nat$age)));
+co2.spec <- spec.pgram(co2.full, plot=FALSE);
+
+co2.spec.df <- data.frame(frequency = co2.spec$freq, spec = co2.spec$spec);
+ggplot(co2.spec.df) +
+    geom_path(aes(x=frequency, y=spec), color="black") +
+    xlim(0, 2e-4) + ylab("spectral power (arbitrary units)") +
+    geom_vline(aes(xintercept=1/100e3), color="blue", alpha=0.3) +
+    geom_vline(aes(xintercept=1/41e3), color="blue", alpha=0.3) +
+    geom_vline(aes(xintercept=1/23e3), color="blue", alpha=0.3) +
+    annotate("text", x=1/100e3, y=Inf, vjust=1, label="100") +
+    annotate("text", x=1/41e3,  y=Inf, vjust=1, label="41") +
+    annotate("text", x=1/23e3,  y=Inf, vjust=1, label="23 kyr");
+```
+
+Same with Lea et al, 2000 foraminifera data (watch sampling rate and units)
+
+```{r lea2000}
+tr163    <- read.table("tr16319l-tab.txt", comment.char = "#", header = TRUE, na.strings = "-999");
+tr163.f  <- na.approx(as.ts(zoo(tr163$d18Ouvige, order.by=tr163$yrBP)));
+tr163.df <- data.frame(d18O=tr163.f);
+tr163.df$age <- seq(tr163$yrBP[1], tr163$yrBP[nrow(tr163)], length.out=length(tr163.f));
+
+tr163.z  <- na.spline(zoo(tr163$d18Ouvige, order.by=tr163$yrBP));
+
+tr163.spec <- spec.pgram(tr163.df$d18O, plot=FALSE);
+p1 <- ggplot(tr163.df)                                   +
+        geom_path(aes(x=age, y=d18O))                    +
+        geom_point(aes(x=yrBP, y=d18Ouvige), data=tr163) +
+        scale_x_reverse();
+
+tr163.spec.df <- data.frame(frequency = tr163.spec$freq, spec = tr163.spec$spec);
+p2 <- ggplot(tr163.spec.df) + geom_path(aes(x=frequency, y=spec), color="black")    +
+                       xlim(0, 2e-4) + ylab("spectral power (arbitrary units)")     +
+                       geom_vline(aes(xintercept=1/100e3), color="blue", alpha=0.3) +
+                       geom_vline(aes(xintercept=1/41e3), color="blue", alpha=0.3)  +
+                       geom_vline(aes(xintercept=1/23e3), color="blue", alpha=0.3)  +
+                       annotate("text", x=1/100e3, y=Inf, vjust=1, label="100")     +
+                       annotate("text", x=1/41e3,  y=Inf, vjust=1, label="41")      +
+                       annotate("text", x=1/23e3,  y=Inf, vjust=1, label="23 kyr");
+grid.arrange(p1, p2, nrow=2, ncol=1);
+```
+
+## Functions
+
+The _fundamental frequency_ for a DFT is the length of the input N. All frequencies k are integer multiples of the fundamental.
+
+The forward Discrete Fourier Transform takes an input signal of $N$ samples, with each sample $x_n$ from $n = 0 - (N-1)$, and calculates $N$ complex numbers $X_k$ with $k = 0 - (N-1)$, giving the amount of frequency $k$ in the input, by the following formula:
+
+$$
+X_k = \sum_{n=0}^{N-1} x_n \exp{(-i 2 \pi k n / N)}
+$$
+
+```{r dft}
+# Discrete Fourier Transform. For illustration purposes. Use fft() because it is much more efficient.
+#
+# returns the DFT of input signal `x.n`
+dft <- function(x.n) {
+  N   <- length(x.n);     # number of points
+  ks  <- 0:(N-1);         # frequencies to calculate
+  X.k <- rep(0, times=N); # results, how much of freq k in input?
+
+  # for each frequency k, sum over N data points
+  for (k in ks) {
+    for (n in 0:(N-1)) {
+      X.k[k+1] <- X.k[k+1] + x.n[n+1] * exp(2*pi*-1i*k*n/N);
+    }
+  }
+  X.k;
+}
+```
+
+```{r idft}
+# Inverse Discrete Fourier Transform. For illustration. Use fft(x, inverse=TRUE).
+#
+# returns N time domain samples given dft results `X.k`.
+# N should usually be equivalent to length of input signal
+inverse_dft <- function(X.k, N) {
+  x.n <- rep(0, N);  # results, time domain signal n
+  ks  <- 0:(length(X.k)-1);
+
+  for (n in 0:(N-1)) {
+    x.n[n+1] <- sum(X.k * exp(2*pi*1i*ks*n/N)) / N;
+  }
+  x.n;
+}
+```
+
+```{r}
+# return frequencies in original units of input for a
+# DFT/FFT with signal of length `N` and sample rate `Fs`.
+dft.freqs <- function(N, Fs) {
+  dF   <- Fs / N;             # freq increment
+  frqs <- seq(0, N/2-1) * dF; # list frequencies, up to Nyquist
+  return(frqs);
+}
+
+# return power (amount) for each frequency in a DFT/FFT,
+# up to Nyquist frequency
+dft.powers <- function(X.k) {
+  N <- length(X.k);
+  return(Mod(X.k)[1:(N/2)]);
+}
+
+# return the frequency spectrum from fft results `X.k` and sample rate `Fs`
+frequency.spectrum <- function(X.k, Fs, display=FALSE) {
+  N    <- length(X.k);
+  freq <- dft.freqs(N, Fs);  # list frequencies, up to Nyquist
+  spec <- dft.powers(X.k);   # get freq powers,  up to Nyquist
+  if (display) {
+    plot(freq, spec, t='h', lwd=2,
+        xlab="Frequency (1 / time base)",
+        ylab="Strength",
+         ylim=c(0, max(spec)));
+  }
+  return(data.frame(freq=freq, spec=spec));
+}
+```
+
+
+
+```{r}
+ecc <- insol[,'eccentricity']; # get eccentricity
+ecc.spec <- frequency.spectrum(fft(ecc), 1)
+plot(ecc.spec, type='h', xlim=c(0, 0.020))
+1 / ecc.spec$freq[ecc.spec$spec > 50] # show important periods
+```
+
+## End
+
+  - Spectrograms
+
+## Explanations of Fourier transforms
+
+  - [Animation by Matt Henderson](http://blog.matthen.com/post/42112703604/the-smooth-motion-of-rotating-circles-can-be-used)
+  - [Nautilius article by Aatish Bhatia](http://nautil.us/blog/the-math-trick-behind-mp3s-jpegs-and-homer-simpsons-face)
+  - [Lorem Ipsum's answer to "Why is the Fourier Transform Important?" on DSP Stack Exchange](http://dsp.stackexchange.com/a/70)
+  - [Better Explained's guide to Fourier Transform](http://betterexplained.com/articles/an-interactive-guide-to-the-fourier-transform/)
+  - [The Scientist and Engineer's Guide to Digital Signal Processing by Steven Smith (free book)](http://www.dspguide.com/)
+  - [Time Series Analysis and Its Applications (with R Examples) by Shumway and Stoffer (free EZGreen edition)](http://www.stat.pitt.edu/stoffer/tsa3/)
+
+## Resources on Climate and Milankovich Cycles
+
+  - [Seasons and Ecliptic Simulator](http://astro.unl.edu/naap/motion1/animations/seasons_ecliptic.html)
+  - [NOAA Data Repository for Ice Cores](https://www.ncdc.noaa.gov/cdo/f?p=535:9)
+  - [Robert Muller's Introduction to Ice Age Theories](http://muller.lbl.gov/pages/IceAgeBook/IceAgeTheories.html)
+  - [Robert Muller's Introduction to the History of Climate](http://muller.lbl.gov/pages/IceAgeBook/history_of_climate.html)
+  - [Robert Muller's Introduction to Spectra](http://muller.lbl.gov/pages/IceAgeBook/Spectra.html)
+  - [ScienceCourseware: Milankovich Cycles](http://www.sciencecourseware.org/eec/globalwarming/tutorials/milankovitch/)
+  - [Milankovich Orbital Data Viewer](http://biocycle.atmos.colostate.edu/shiny/Milankovitch/)
+  - [Laskar orbital data](http://vo.imcce.fr/insola/earth/online/earth/earth.html)
+
+
+## An audio filtering example
+
+```{r denoise-audio}
+library(audio)
+mc.raw <- load.wave("middle-c-44k-8bit.wav");
+
+denoise <- function(inaudio, threshold=50) {
+  N <- length(inaudio);
+  out <- rep_len(0, N);
+
+  i = 0;
+  while ((i+512) < N) {
+    f <- fft(inaudio[i:(i+512)]);
+    f[Mod(f) < threshold] <- 0;
+    out[i:(i+512)] <- Re(fft(f, inverse=T));
+    i = i + 512;
+  }
+  return(audioSample(out, rate=attr(inaudio, "rate"), bits=attr(inaudio, "bits"), clip=TRUE));
+}
+mc.denoise <- denoise(mc.raw);
+```
